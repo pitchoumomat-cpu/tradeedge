@@ -1,11 +1,11 @@
-const CACHE_NAME = 'tradeedge-cache-v1';
+const CACHE_NAME = 'tradeedge-cache-v2';
 const APP_SHELL = [
   './',
   './index.html',
   './manifest.json',
-  './icons/icon-192.png',
-  './icons/icon-512.png',
-  './icons/apple-touch-icon.png'
+  './icon-192.png',
+  './icon-512.png',
+  './apple-touch-icon.png'
 ];
 
 self.addEventListener('install', (event) => {
@@ -24,7 +24,6 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Cache-first for the app shell, network-first (with cache fallback) for everything else
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
@@ -46,7 +45,6 @@ self.addEventListener('fetch', (event) => {
       })
     );
   } else {
-    // Third-party (fonts, CDN scripts, Supabase API) — try network, fall back to cache
     event.respondWith(
       fetch(req)
         .then((res) => {
