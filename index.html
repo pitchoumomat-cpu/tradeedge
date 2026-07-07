@@ -18,8 +18,8 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 :root {
   --bg-primary: #0a0e17;
@@ -1450,36 +1450,57 @@ body::before {
     </div>
     <div class="modal-body">
       <div class="import-tabs">
-        <button class="import-tab active" data-import-tab="csv" onclick="switchImportTab('csv')">
-          <span>📁</span> Upload CSV File
+        <button class="import-tab active" data-import-tab="excel" onclick="switchImportTab('excel')">
+          <span>📊</span> Excel File
         </button>
         <button class="import-tab" data-import-tab="paste" onclick="switchImportTab('paste')">
           <span>📋</span> Paste Text
         </button>
-        <button class="import-tab" data-import-tab="screenshot" onclick="switchImportTab('screenshot')">
-          <span>📸</span> Screenshot (OCR)
-        </button>
       </div>
 
-      <!-- CSV FILE TAB (BEST METHOD) -->
-      <div class="import-content active" id="import-csv">
-        <div style="padding:1rem;background:var(--blue-dim);border:1px solid rgba(59,130,246,0.3);border-radius:var(--radius);margin-bottom:1.5rem">
-          <p style="font-size:0.85rem;color:var(--blue);margin:0"><strong>How to export from MT5:</strong></p>
+      <!-- EXCEL FILE TAB -->
+      <div class="import-content active" id="import-excel">
+        <div style="padding:1rem;background:var(--green-dim);border:1px solid rgba(34,197,94,0.3);border-radius:var(--radius);margin-bottom:1.5rem">
+          <p style="font-size:0.85rem;color:var(--green);margin:0"><strong>Upload MT5 Excel Report:</strong></p>
           <ol style="font-size:0.82rem;color:var(--text-secondary);margin:0.5rem 0 0 1.2rem;line-height:1.6">
-            <li>Open MT5 Terminal → <strong>Toolbox</strong> (bottom panel)</li>
-            <li>Click the <strong>History</strong> tab</li>
-            <li>Right-click anywhere in the trade list → <strong>Export as CSV</strong></li>
-            <li>Save the file and upload it below</li>
+            <li>Open MT5 Terminal → <strong>Toolbox</strong> → <strong>History</strong> tab</li>
+            <li>Right-click → <strong>Save as Report</strong></li>
+            <li>Choose <strong>Excel</strong> format and save</li>
+            <li>Upload the .xlsx file below</li>
           </ol>
         </div>
-        <div class="drop-zone" id="csv-drop-zone" onclick="document.getElementById('csv-file-input').click()">
-          <div class="drop-zone-icon">📁</div>
-          <div class="drop-zone-text">Click to upload or drag & drop your MT5 CSV file</div>
-          <div class="drop-zone-sub">Supports .csv files exported from MT5 Terminal</div>
-          <input type="file" id="csv-file-input" accept=".csv,.txt" style="display:none" onchange="handleCSVUpload(event)">
+
+        <div class="form-group">
+          <label class="form-label">Date Filter</label>
+          <select class="form-select" id="excel-date-filter" onchange="toggleDateRange()">
+            <option value="today">Today's Trades</option>
+            <option value="last">Last Trade</option>
+            <option value="custom">Custom Date Range</option>
+            <option value="all">All Trades</option>
+          </select>
         </div>
-        <div class="ocr-status" id="csv-status">
-          <div id="csv-status-text">Processing...</div>
+
+        <div class="form-group" id="custom-date-range" style="display:none">
+          <div class="form-row">
+            <div>
+              <label class="form-label">From Date</label>
+              <input type="date" class="form-input" id="excel-date-from">
+            </div>
+            <div>
+              <label class="form-label">To Date</label>
+              <input type="date" class="form-input" id="excel-date-to">
+            </div>
+          </div>
+        </div>
+
+        <div class="drop-zone" id="excel-drop-zone" onclick="document.getElementById('excel-file-input').click()">
+          <div class="drop-zone-icon">📊</div>
+          <div class="drop-zone-text">Click to upload or drag & drop your MT5 Excel file</div>
+          <div class="drop-zone-sub">Supports .xlsx and .xls files</div>
+          <input type="file" id="excel-file-input" accept=".xlsx,.xls" style="display:none" onchange="handleExcelUpload(event)">
+        </div>
+        <div class="ocr-status" id="excel-status">
+          <div id="excel-status-text">Processing...</div>
         </div>
       </div>
 
@@ -1560,38 +1581,22 @@ Note: Prices with spaces (4 267,30) and commas (19,06620) are auto-detected!"></
         </button>
       </div>
 
-      <!-- SCREENSHOT TAB -->
-      <div class="import-content" id="import-screenshot">
-        <div style="padding:1rem;background:var(--accent-dim);border:1px solid rgba(201,150,59,0.3);border-radius:var(--radius);margin-bottom:1.5rem">
-          <p style="font-size:0.85rem;color:var(--accent);margin:0"><strong>⚠ Note:</strong> Screenshot OCR works best with clear, high-resolution images. For best results, use CSV export or paste method instead.</p>
-        </div>
-        <div class="drop-zone" id="screenshot-drop-zone" onclick="document.getElementById('screenshot-file-input').click()">
-          <div class="drop-zone-icon">📸</div>
-          <div class="drop-zone-text">Click to upload or drag & drop your MT5 screenshot</div>
-          <div class="drop-zone-sub">Supports PNG, JPG, BMP • OCR will extract trade data</div>
-          <input type="file" id="screenshot-file-input" accept="image/*" style="display:none" onchange="handleScreenshotUpload(event)">
-        </div>
-        <div class="ocr-status" id="ocr-status">
-          <div id="ocr-status-text">Processing...</div>
-          <div class="ocr-progress">
-            <div class="ocr-progress-bar" id="ocr-progress-bar"></div>
-          </div>
-        </div>
-        <div id="screenshot-preview-container" style="margin-top:1rem;display:none">
-          <img id="screenshot-preview-img" style="max-width:100%;border-radius:var(--radius);border:1px solid var(--border)">
-        </div>
-      </div>
-
       <!-- IMPORT RESULTS PREVIEW -->
       <div class="import-result" id="import-result">
         <div class="import-result-header">
-          <span class="import-result-title">Preview & Edit Before Import</span>
+          <span class="import-result-title">Preview & Select Trades</span>
           <span class="import-result-count" id="import-result-count">0 trades found</span>
+        </div>
+        <div style="margin-bottom:0.75rem;display:flex;gap:0.5rem;align-items:center">
+          <button class="btn btn-sm" onclick="selectAllTrades()">Select All</button>
+          <button class="btn btn-sm" onclick="deselectAllTrades()">Deselect All</button>
+          <span style="font-size:0.75rem;color:var(--text-secondary);margin-left:auto" id="selected-count">0 selected</span>
         </div>
         <div style="overflow-x:auto;max-height:300px;border:1px solid var(--border);border-radius:var(--radius)">
           <table class="journal-table" style="margin:0">
             <thead>
               <tr>
+                <th style="font-size:0.7rem;width:40px">✓</th>
                 <th style="font-size:0.7rem">Date</th>
                 <th style="font-size:0.7rem">Pair</th>
                 <th style="font-size:0.7rem">Type</th>
@@ -1602,7 +1607,6 @@ Note: Prices with spaces (4 267,30) and commas (19,06620) are auto-detected!"></
                 <th style="font-size:0.7rem">TP</th>
                 <th style="font-size:0.7rem">Exit</th>
                 <th style="font-size:0.7rem">P&L</th>
-                <th style="font-size:0.7rem">Action</th>
               </tr>
             </thead>
             <tbody id="import-preview-tbody"></tbody>
@@ -1613,7 +1617,7 @@ Note: Prices with spaces (4 267,30) and commas (19,06620) are auto-detected!"></
             Cancel
           </button>
           <button class="btn btn-primary" style="flex:2;justify-content:center" onclick="confirmImport()">
-            ✓ Import All Trades to Journal
+            ✓ Import Selected Trades
           </button>
         </div>
       </div>
@@ -2872,26 +2876,35 @@ function detectAssetClass(symbol) {
 }
 
 // CSV File Upload Handler
-function handleCSVUpload(event) {
+// Excel File Upload Handler
+function handleExcelUpload(event) {
   const file = event.target.files[0];
   if (!file) return;
 
-  const statusEl = document.getElementById('csv-status');
-  const statusText = document.getElementById('csv-status-text');
+  const statusEl = document.getElementById('excel-status');
+  const statusText = document.getElementById('excel-status-text');
 
   statusEl.className = 'ocr-status visible processing';
-  statusText.textContent = 'Reading file...';
+  statusText.textContent = 'Reading Excel file...';
 
   const reader = new FileReader();
   reader.onload = function(e) {
     try {
-      const text = e.target.result;
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type: 'array' });
+      
+      // Get the first sheet
+      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+      
+      // Convert to JSON with header row detection
+      const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '' });
+      
       statusText.textContent = 'Parsing trades...';
       
-      parsedTrades = parseMT5Format(text);
+      parsedTrades = parseExcelData(jsonData);
 
       if (parsedTrades.length === 0) {
-        statusText.textContent = '⚠ No trades found. Check if this is a valid MT5 CSV export.';
+        statusText.textContent = '⚠ No trades found. Check if this is a valid MT5 Excel export.';
         statusEl.className = 'ocr-status visible error';
       } else {
         statusText.textContent = `✓ Found ${parsedTrades.length} trade${parsedTrades.length !== 1 ? 's' : ''}`;
@@ -2907,7 +2920,172 @@ function handleCSVUpload(event) {
     statusText.textContent = '✗ Error reading file';
     statusEl.className = 'ocr-status visible error';
   };
-  reader.readAsText(file);
+  reader.readAsArrayBuffer(file);
+}
+
+// Parse Excel Data from MT5
+function parseExcelData(jsonData) {
+  const trades = [];
+  
+  // Find the header row (usually row 5 based on the structure)
+  let headerRowIdx = -1;
+  let colMap = {};
+  
+  for (let i = 0; i < Math.min(20, jsonData.length); i++) {
+    const row = jsonData[i];
+    if (row && row[0] === 'Time' && row[2] === 'Symbol') {
+      headerRowIdx = i;
+      // Map columns
+      colMap = {
+        time: 0,
+        position: 1,
+        symbol: 2,
+        type: 3,
+        volume: 4,
+        price: 5,
+        sl: 6,
+        tp: 7,
+        closeTime: 8,
+        closePrice: 9,
+        commission: 10,
+        swap: 11,
+        profit: 12
+      };
+      break;
+    }
+  }
+  
+  if (headerRowIdx === -1) {
+    console.error('Could not find header row in Excel file');
+    return trades;
+  }
+  
+  // Parse trades starting from the row after header
+  for (let i = headerRowIdx + 1; i < jsonData.length; i++) {
+    const row = jsonData[i];
+    if (!row || !row[colMap.time] || row[colMap.time] === 'Positions') continue;
+    
+    try {
+      const openTime = row[colMap.time];
+      const closeTime = row[colMap.closeTime];
+      
+      // Skip if no close time (open position)
+      if (!closeTime || closeTime === '') continue;
+      
+      // Parse dates
+      const openDate = parseExcelDate(openTime);
+      const closeDate = parseExcelDate(closeTime);
+      
+      if (!openDate || !closeDate) continue;
+      
+      const symbol = (row[colMap.symbol] || '').toString().replace(/micro$/i, '').toUpperCase();
+      const type = (row[colMap.type] || '').toString().toLowerCase();
+      const volume = parseFloat(row[colMap.volume]) || 0;
+      const entry = parseFloat(row[colMap.price]) || 0;
+      const exit = parseFloat(row[colMap.closePrice]) || 0;
+      const sl = parseFloat(row[colMap.sl]) || null;
+      const tp = parseFloat(row[colMap.tp]) || null;
+      const profit = parseFloat(row[colMap.profit]) || 0;
+      
+      // Skip if invalid data
+      if (!symbol || !type || volume === 0 || entry === 0 || exit === 0) continue;
+      
+      const trade = {
+        date: closeDate,
+        pair: symbol,
+        direction: type === 'buy' ? 'buy' : 'sell',
+        asset: detectAssetClass(symbol),
+        lots: volume.toString(),
+        entry: entry.toString(),
+        exit: exit.toString(),
+        sl: sl ? sl.toString() : '',
+        tp: tp ? tp.toString() : '',
+        pnl: profit,
+        rulesFollowed: 'all',
+        worked: '',
+        failed: '',
+        notes: 'Imported from MT5 Excel',
+        workedTags: [],
+        failedTags: [],
+        selected: true // Default to selected
+      };
+      
+      trades.push(trade);
+    } catch (e) {
+      console.error('Error parsing row:', e);
+      continue;
+    }
+  }
+  
+  // Apply date filter
+  return applyDateFilter(trades);
+}
+
+// Parse Excel date (handles both string and number formats)
+function parseExcelDate(dateValue) {
+  if (!dateValue) return null;
+  
+  // If it's a number (Excel serial date)
+  if (typeof dateValue === 'number') {
+    const date = new Date((dateValue - 25569) * 86400 * 1000);
+    return date.toISOString().split('T')[0];
+  }
+  
+  // If it's a string
+  const dateStr = dateValue.toString();
+  
+  // Try different formats
+  // Format: 2026.06.09 20:43:51
+  if (dateStr.match(/^\d{4}\.\d{2}\.\d{2}/)) {
+    return dateStr.replace(/\./g, '-').substring(0, 10);
+  }
+  
+  // Format: 2026-06-09 20:43:51
+  if (dateStr.match(/^\d{4}-\d{2}-\d{2}/)) {
+    return dateStr.substring(0, 10);
+  }
+  
+  return null;
+}
+
+// Apply date filter based on selection
+function applyDateFilter(trades) {
+  const filterType = document.getElementById('excel-date-filter').value;
+  const today = new Date().toISOString().split('T')[0];
+  
+  if (filterType === 'today') {
+    return trades.filter(t => t.date === today);
+  }
+  
+  if (filterType === 'last') {
+    // Sort by date descending and return only the last one
+    trades.sort((a, b) => b.date.localeCompare(a.date));
+    return trades.length > 0 ? [trades[0]] : [];
+  }
+  
+  if (filterType === 'custom') {
+    const fromDate = document.getElementById('excel-date-from').value;
+    const toDate = document.getElementById('excel-date-to').value;
+    
+    if (fromDate && toDate) {
+      return trades.filter(t => t.date >= fromDate && t.date <= toDate);
+    }
+  }
+  
+  // 'all' - return all trades
+  return trades;
+}
+
+// Toggle custom date range visibility
+function toggleDateRange() {
+  const filterType = document.getElementById('excel-date-filter').value;
+  const customRange = document.getElementById('custom-date-range');
+  
+  if (filterType === 'custom') {
+    customRange.style.display = 'block';
+  } else {
+    customRange.style.display = 'none';
+  }
 }
 
 // MT5 Text Parser
@@ -3225,9 +3403,14 @@ function parseTradeParts(parts) {
 function showImportPreview(trades) {
   const resultEl = document.getElementById('import-result');
   const countEl = document.getElementById('import-result-count');
+  const selectedCountEl = document.getElementById('selected-count');
   const tbody = document.getElementById('import-preview-tbody');
 
   countEl.textContent = `${trades.length} trade${trades.length !== 1 ? 's' : ''} found`;
+  
+  // Update selected count
+  const selectedCount = trades.filter(t => t.selected !== false).length;
+  selectedCountEl.textContent = `${selectedCount} selected`;
 
   tbody.innerHTML = trades.map((t, idx) => {
     const pnlClass = t.pnl > 0 ? 'pnl-positive' : t.pnl < 0 ? 'pnl-negative' : 'pnl-zero';
@@ -3236,8 +3419,10 @@ function showImportPreview(trades) {
     const sl = t.sl || '—';
     const tp = t.tp || '—';
     const exit = t.exit || '—';
+    const checked = t.selected !== false ? 'checked' : '';
     
     return `<tr>
+      <td style="text-align:center"><input type="checkbox" ${checked} onchange="toggleTradeSelection(${idx})"></td>
       <td style="font-family:'DM Mono',monospace;font-size:0.78rem">${formatDate(t.date)}</td>
       <td style="font-weight:600;font-size:0.85rem">${t.pair}</td>
       <td><span class="badge badge-${t.direction}" style="font-size:0.7rem">${t.direction.toUpperCase()}</span></td>
@@ -3248,13 +3433,28 @@ function showImportPreview(trades) {
       <td style="font-family:'DM Mono',monospace;font-size:0.78rem;color:var(--green)">${tp}</td>
       <td style="font-family:'DM Mono',monospace;font-size:0.78rem">${exit}</td>
       <td class="${pnlClass}" style="font-weight:700;font-size:0.85rem">${pnlStr}</td>
-      <td>
-        <button class="rule-action-btn delete" onclick="removeImportTrade(${idx})" title="Remove">✕</button>
-      </td>
     </tr>`;
   }).join('');
 
   resultEl.classList.add('visible');
+}
+
+function toggleTradeSelection(idx) {
+  if (parsedTrades[idx]) {
+    parsedTrades[idx].selected = !parsedTrades[idx].selected;
+    const selectedCount = parsedTrades.filter(t => t.selected !== false).length;
+    document.getElementById('selected-count').textContent = `${selectedCount} selected`;
+  }
+}
+
+function selectAllTrades() {
+  parsedTrades.forEach(t => t.selected = true);
+  showImportPreview(parsedTrades);
+}
+
+function deselectAllTrades() {
+  parsedTrades.forEach(t => t.selected = false);
+  showImportPreview(parsedTrades);
 }
 
 function removeImportTrade(idx) {
@@ -3272,91 +3472,32 @@ function cancelImport() {
 }
 
 function confirmImport() {
-  if (parsedTrades.length === 0) {
-    alert('No trades to import.');
+  // Filter only selected trades
+  const selectedTrades = parsedTrades.filter(t => t.selected !== false);
+  
+  if (selectedTrades.length === 0) {
+    alert('No trades selected. Please check at least one trade to import.');
     return;
   }
 
-  // Add all parsed trades to current account's journal
+  // Clean up trades (remove selected property)
+  const cleanTrades = selectedTrades.map(t => {
+    const { selected, ...rest } = t;
+    return rest;
+  });
+
+  // Add selected trades to current account's journal
   const journal = getCurrentJournal();
-  state.journal[state.currentAccount] = [...parsedTrades, ...journal];
+  state.journal[state.currentAccount] = [...cleanTrades, ...journal];
   saveJournal();
   renderJournal();
 
-  alert(`✓ Successfully imported ${parsedTrades.length} trade${parsedTrades.length !== 1 ? 's' : ''} to ${state.currentAccount}!`);
+  alert(`✓ Successfully imported ${selectedTrades.length} trade${selectedTrades.length !== 1 ? 's' : ''} to ${state.currentAccount}!`);
   closeImportModal();
 }
 
 // Screenshot OCR
-function handleScreenshotUpload(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-
-  if (!file.type.startsWith('image/')) {
-    alert('Please upload an image file (PNG, JPG, BMP).');
-    return;
-  }
-
-  // Show preview
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    document.getElementById('screenshot-preview-img').src = e.target.result;
-    document.getElementById('screenshot-preview-container').style.display = 'block';
-  };
-  reader.readAsDataURL(file);
-
-  // Start OCR
-  processScreenshotOCR(file);
-}
-
-async function processScreenshotOCR(file) {
-  const statusEl = document.getElementById('ocr-status');
-  const statusText = document.getElementById('ocr-status-text');
-  const progressBar = document.getElementById('ocr-progress-bar');
-
-  statusEl.className = 'ocr-status visible processing';
-  statusText.textContent = 'Initializing OCR engine...';
-  progressBar.style.width = '10%';
-
-  try {
-    const result = await Tesseract.recognize(
-      file,
-      'eng',
-      {
-        logger: m => {
-          if (m.status === 'recognizing text') {
-            const progress = Math.round(m.progress * 100);
-            progressBar.style.width = progress + '%';
-            statusText.textContent = `Recognizing text... ${progress}%`;
-          }
-        }
-      }
-    );
-
-    progressBar.style.width = '100%';
-    statusText.textContent = '✓ Text extracted! Parsing trades...';
-    statusEl.className = 'ocr-status visible success';
-
-    // Parse the extracted text
-    const extractedText = result.data.text;
-    parsedTrades = parseMT5Format(extractedText);
-
-    if (parsedTrades.length === 0) {
-      statusText.textContent = '⚠ No trades found. The image may be unclear. Try CSV export for best results.';
-      statusEl.className = 'ocr-status visible error';
-    } else {
-      statusText.textContent = `✓ Found ${parsedTrades.length} trade${parsedTrades.length !== 1 ? 's' : ''}`;
-      showImportPreview(parsedTrades);
-    }
-
-  } catch (error) {
-    console.error('OCR Error:', error);
-    statusText.textContent = '✗ OCR failed: ' + error.message;
-    statusEl.className = 'ocr-status visible error';
-  }
-}
-
-// Drag and drop for CSV and screenshot
+// Drag and drop for Excel
 function setupDropZone(zoneId, inputId) {
   const dropZone = document.getElementById(zoneId);
   if (!dropZone) return;
@@ -3377,18 +3518,15 @@ function setupDropZone(zoneId, inputId) {
     if (files.length > 0) {
       const input = document.getElementById(inputId);
       const event = { target: { files: [files[0]] } };
-      if (inputId === 'csv-file-input') {
-        handleCSVUpload(event);
-      } else if (inputId === 'screenshot-file-input') {
-        handleScreenshotUpload(event);
+      if (inputId === 'excel-file-input') {
+        handleExcelUpload(event);
       }
     }
   });
 }
 
 // Initialize drop zones
-setupDropZone('csv-drop-zone', 'csv-file-input');
-setupDropZone('screenshot-drop-zone', 'screenshot-file-input');
+setupDropZone('excel-drop-zone', 'excel-file-input');
 
 // Close import modal on overlay click
 document.getElementById('import-modal').addEventListener('click', (e) => {
@@ -3444,6 +3582,7 @@ if ('serviceWorker' in navigator) {
   });
 }
 </script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"75124c326cb447fe934cde04713ae013","r":1,"server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"75124c326cb447fe934cde04713ae013","r":1,"server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"75124c326cb447fe934cde04713ae013","r":1,"server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"75124c326cb447fe934cde04713ae013","r":1,"server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
